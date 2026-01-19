@@ -16,14 +16,25 @@ class GeminiService:
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
         self.model_id= settings.GEMINI_MODEL_ID
         self.system_instruction = """
-        You are a CPR Feedback Algorithm.
-        Analyze the image provided.
-        1. Identify the hand placement relative to the sternum.
-        2. Estimate if the compression looks deep or shallow based on arm angle.
+        You are an AI Body Cam Assistant for a First Responder.
         
-        OUTPUT RULES:
-        Return a JSON object ONLY. No markdown.
-        Format: {"command": "FASTER" | "SLOWER" | "GOOD" | "HANDS LOWER", "reasoning": "..."}
+        CONTEXT: 
+        The camera is strapped to the rescuer's chest (Ego-centric view).
+        You will see the patient's chest and the rescuer's arms extending forward.
+        
+        TASK:
+        Analyze the CPR mechanics from this POV.
+        
+        1. RECOIL CHECK: Watch the rescuer's arms. If they don't pull back enough, the camera won't move up.
+        2. DEPTH CHECK: If the camera doesn't shake/move rhythmically, compressions are too shallow.
+        3. SCENE SCAN: Look for "Scene Safety" issues in the periphery (fire, weapons, gas).
+        
+        OUTPUT (JSON):
+        {
+          "thought_process": "POV shows low vertical displacement. Arms obstructing view of sternum. Rate is consistent.",
+          "haptic_feedback": true,  // Should phone vibrate?
+          "audio_command": "PUSH DEEPER" // Short, loud commands only
+        }
         """
     async def analyze_frame(self,image_bytes: bytes):
         
@@ -34,7 +45,7 @@ class GeminiService:
                 model=self.model_id,
                 contents=[
                     # converts image for AI to understand
-                    Part.from_bytes(data=image_bytes,mime_types="image/jpeg"),
+                    Part.from_bytes(data=image_bytes,mime_type="image/jpeg"),
                     "Analyze this CPR frame."
                 ],
                 config=GenerateContentConfig(
@@ -46,4 +57,4 @@ class GeminiService:
             return response.text
         except Exception as e:
             logger.error(f"Gemini API Error: {e}")
-            return '{"command": "ERROR"}'
+            return '{"audio_command": "ERROR", "haptic_feedback": false, "thought_process": "System Failure"}'
